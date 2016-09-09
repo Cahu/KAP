@@ -1,10 +1,13 @@
+{-# LANGUAGE RecordWildCards #-}
+
 module Main where
+
+import Lib
 
 import KRPCHS
 import KRPCHS.SpaceCenter
 
 import Control.Monad
-import Control.Monad.Catch
 import Control.Monad.Trans
 
 
@@ -17,27 +20,16 @@ main =
 
 mainProg :: StreamClient -> RPCContext ()
 mainProg streamClient =
-    getActiveVessel                       >>= \vessel  ->
-    getVesselControl vessel               >>= \control ->
-    getVesselOrbit vessel                 >>= \orbit   ->
-    getOrbitBody orbit                    >>= \planet  ->
-    getCelestialBodyReferenceFrame planet >>= \ref     ->
-    vesselFlight vessel ref               >>= \flight  ->
+    getStandardVesselPackage >>= \StandardVesselPackage{..} ->
 
-    let
-        stage = void $ controlActivateNextStage control
+    let stage = void $
+            controlActivateNextStage control
 
-        monitorWait stream predicate = loop
-            where loop = do
-                    msg <- getStreamMessage streamClient
-                    ok  <- try (getStreamResult stream msg)
-                    case ok of
-                        Left NoSuchStream -> loop
-                        Left e            -> throwM e
-                        Right val         -> unless (predicate val) loop
+        waitStartFalling vSpeedStream = keepTryingOnExcept NoSuchStream $
+            monitorStreamWait streamClient vSpeedStream (< (-10))
 
     in
         withStream (getFlightVerticalSpeedStreamReq flight) $ \verticalSpeedStream -> do
-            stage                                     -- launch
-            monitorWait verticalSpeedStream (< (-10)) -- monitor vertical speed : wait until we start falling
-            stage                                     -- activate chutes
+            stage                                -- launch
+            waitStartFalling verticalSpeedStream -- wait til we start falling back
+            stage                                -- activate chutes
