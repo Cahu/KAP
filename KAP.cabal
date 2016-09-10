@@ -9,27 +9,30 @@ cabal-version:       >=1.10
 library
   hs-source-dirs:      src
   exposed-modules:     Lib
+                     , Utils.Streams
   build-depends:       base >= 4.7 && < 5
                      , mtl
                      , exceptions
                      , krpc-hs
   default-language:    Haskell2010
 
+
 executable 1_PodOnFleaSRB
   hs-source-dirs:      app
   main-is:             1_PodOnFleaSRB.hs
-  ghc-options:         -threaded -rtsopts -with-rtsopts=-N
+  ghc-options:         -Wall -threaded -rtsopts -with-rtsopts=-N
   build-depends:       base
                      , mtl
                      , exceptions
                      , krpc-hs
                      , KAP
   default-language:    Haskell2010
+
 
 executable 2_PodOnThumperSRB
   hs-source-dirs:      app
   main-is:             2_PodOnThumperSRB.hs
-  ghc-options:         -threaded -rtsopts -with-rtsopts=-N
+  ghc-options:         -Wall -threaded -rtsopts -with-rtsopts=-N
   build-depends:       base
                      , mtl
                      , exceptions
@@ -37,10 +40,11 @@ executable 2_PodOnThumperSRB
                      , KAP
   default-language:    Haskell2010
 
+
 executable 3_RadialSRBs
   hs-source-dirs:      app
   main-is:             3_RadialSRBs.hs
-  ghc-options:         -threaded -rtsopts -with-rtsopts=-N
+  ghc-options:         -Wall -threaded -rtsopts -with-rtsopts=-N
   build-depends:       base
                      , mtl
                      , exceptions
