@@ -32,7 +32,7 @@ mainProg streamClient =
 
     let stage = void $ controlActivateNextStage control
 
-        -- wait for a sudden drop in thrust
+        -- wait for a sudden drop of thrust
         waitBoosterBurnout thrustStream = keepTryingOnExcept NoSuchStream $
             monitorStreamChange streamClient thrustStream (\oldval newval -> oldval - newval > 100)
 
