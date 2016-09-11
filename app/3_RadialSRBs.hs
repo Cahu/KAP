@@ -45,7 +45,7 @@ mainProg streamClient =
     in do
         stage -- launch
         withStream (getVesselAvailableThrustStreamReq vessel) waitBoosterBurnout
-        stage -- decouble boosters
+        stage -- decouple boosters
         withStream (getFlightVerticalSpeedStreamReq   flight) waitStartFalling
         stage -- decouple pod
         withStream (getFlightSurfaceAltitudeStreamReq flight) waitSafeAltitude
