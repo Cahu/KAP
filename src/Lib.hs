@@ -24,7 +24,6 @@ data StandardVesselPackage = StandardVesselPackage
     , flight  :: Flight
     , orbit   :: Orbit
     , body    :: CelestialBody
-    , bodyRef :: ReferenceFrame
     }
 
 
