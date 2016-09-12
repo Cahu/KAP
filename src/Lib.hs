@@ -5,17 +5,25 @@ module Lib
 , getStandardVesselPackage
 , keepTryingOnExcept
 
+, countDown
+
 , module Utils.Streams
 
 ) where
 
 
 import KRPCHS
+import KRPCHS.UI
 import KRPCHS.SpaceCenter
 
 import Utils.Streams
 
+import Control.Monad
 import Control.Monad.Catch
+import Control.Monad.Trans
+import Control.Concurrent
+
+import qualified Data.Text as T
 
 
 data StandardVesselPackage = StandardVesselPackage
@@ -46,3 +54,9 @@ keepTryingOnExcept exception action = loop
             case ok of
                 Left err -> if (err == exception) then loop else throwM err
                 Right a  -> return a
+
+
+countDown :: Int -> RPCContext ()
+countDown n = forM_ (reverse [ 1 .. n ]) $ \sec -> do
+    void   $ message (T.pack $ show sec) 1 MessagePosition'TopCenter
+    liftIO $ threadDelay 1000000
