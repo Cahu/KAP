@@ -6,8 +6,11 @@ module Lib
 , keepTryingOnExcept
 
 , countDown
+, countDownFromTo
 
 , module Utils.Streams
+, module Utils.Vectors
+, module Utils.Physics
 
 ) where
 
@@ -17,6 +20,8 @@ import KRPCHS.UI
 import KRPCHS.SpaceCenter
 
 import Utils.Streams
+import Utils.Vectors
+import Utils.Physics
 
 import Control.Monad
 import Control.Monad.Catch
@@ -57,6 +62,10 @@ keepTryingOnExcept exception action = loop
 
 
 countDown :: Int -> RPCContext ()
-countDown n = forM_ (reverse [ 1 .. n ]) $ \sec -> do
+countDown n = countDownFromTo n 1
+
+
+countDownFromTo :: Int -> Int -> RPCContext ()
+countDownFromTo m n = forM_ (reverse [ n .. m ]) $ \sec -> do
     void   $ message (T.pack $ show sec) 1 MessagePosition'TopCenter
     liftIO $ threadDelay 1000000

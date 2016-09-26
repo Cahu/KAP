@@ -10,8 +10,11 @@ library
   hs-source-dirs:      src
   exposed-modules:     Lib
                      , Utils.Streams
+                     , Utils.Vectors
+                     , Utils.Physics
   build-depends:       base >= 4.7 && < 5
                      , mtl
+                     , linear
                      , text
                      , exceptions
                      , krpc-hs
@@ -49,6 +52,20 @@ executable 3_RadialSRBs
   build-depends:       base
                      , mtl
                      , exceptions
+                     , krpc-hs
+                     , KAP
+  default-language:    Haskell2010
+
+
+executable 4_ControlledAscent
+  hs-source-dirs:      app
+  main-is:             4_ControlledAscent.hs
+  ghc-options:         -Wall -threaded -rtsopts -with-rtsopts=-N
+  build-depends:       base
+                     , mtl
+                     , exceptions
+                     , async
+                     , linear
                      , krpc-hs
                      , KAP
   default-language:    Haskell2010
