@@ -30,8 +30,8 @@ main :: IO ()
 main = do
     stagingTask <- async ascentStagingMain
     controlTask <- async ascentControlMain
-    void $ waitAnyCancel [ stagingTask, controlTask ]
-
+    wait stagingTask
+    wait controlTask
 
 ascentControlMain :: IO ()
 ascentControlMain =
@@ -67,7 +67,7 @@ controlProg streamClient =
       withStream (getFlightRotationStreamReq surfaceFlight)            $ \rotStream       ->
         let
             bigG      = 6.674 * 10**(-11)
-            targetAlt = 200000
+            targetAlt = 150000
 
             -- directions in the vessel's reference frame
             down    = V3 0 0 1    :: V3 Double
@@ -126,7 +126,7 @@ controlProg streamClient =
 
             getCentrifugalAccel msg = do
                 r <- getR msg
-                v <- getStreamResult vSpeedStream msg
+                v <- getStreamResult hSpeedStream msg
                 return $ v**2 / r
 
             changePitch msg angl = do
@@ -155,7 +155,8 @@ controlProg streamClient =
 
                 if | vertA > 0.01 -> do
                         liftIO $ putStrLn $ printf "IN ORBIT!"
-                        changePitch msg (pi/4)
+                        pitch 0
+                        yaw   0
 
                    | accel == 0 -> do
                         pitch 0
@@ -163,7 +164,7 @@ controlProg streamClient =
                         loop
 
                    | (vSpeed < 100 && alt < 10000) -> do
-                        changePitch msg (pi/2)
+                        changePitch msg 0
                         loop
 
                    | (alt < 90000) -> do
@@ -171,7 +172,7 @@ controlProg streamClient =
                         loop
 
                    | delta <= 0 && vSpeed > 0 -> do
-                        let dAcc = negate (vertA + vSpeed**2/(2*altDif))
+                        let dAcc = 0.5 - (vertA + vSpeed**2/(2*altDif))
                         liftIO $ putStrLn $ printf "TOO LOW: %.02g ~ dAcc: %.02g" delta dAcc
                         pitchAccelRatio msg (dAcc / accel)
                         loop
@@ -215,9 +216,6 @@ stagingProg streamClient =
         waitStartFalling vSpeedStream = keepTryingOnExcept NoSuchStream $
             monitorStreamWait streamClient vSpeedStream (< (-10))
 
-        waitIndefinitelly = forever $
-            liftIO $ threadDelay 1000000
-
     in do
         countDownFromTo 5 3
         stage -- fire
@@ -232,8 +230,6 @@ stagingProg streamClient =
             stage -- 1st stage separation
             waitThrustDrop thrustStream
             stage -- 2nd stage separation
-
-        waitIndefinitelly
 
 
 reentryProg :: StreamClient -> RPCContext ()
