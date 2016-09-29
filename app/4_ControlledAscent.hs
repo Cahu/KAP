@@ -27,11 +27,11 @@ import Control.Concurrent.Async
 
 
 main :: IO ()
-main = do
-    stagingTask <- async ascentStagingMain
-    controlTask <- async ascentControlMain
-    wait stagingTask
-    wait controlTask
+main =
+    withAsync ascentControlMain $ \controlTask ->
+    withAsync ascentStagingMain $ \stagingTask -> do
+        wait stagingTask
+        wait controlTask
 
 ascentControlMain :: IO ()
 ascentControlMain =
