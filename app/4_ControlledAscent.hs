@@ -13,7 +13,6 @@ import Text.Printf
 
 import Control.Monad
 import Control.Monad.Trans
-import Control.Concurrent
 import Control.Concurrent.Async
 
 
@@ -38,7 +37,6 @@ ascentControlMain =
     withRPCClient    "4_ControlledAscent_Control" "127.0.0.1" "50000" $ \client ->
     withStreamClient client                       "127.0.0.1" "50001" $ \streamClient ->
         runRPCProg client (controlProg streamClient)
-
 
 ascentStagingMain :: IO ()
 ascentStagingMain =
@@ -69,48 +67,19 @@ controlProg streamClient =
             bigG      = 6.674 * 10**(-11)
             targetAlt = 150000
 
-            -- directions in the vessel's reference frame
-            down    = V3 0 0 1    :: V3 Double
-            forward = V3 0 1 0    :: V3 Double
-            right   = V3 1 0 0    :: V3 Double
-            up      = negated down
-            left    = negated right
-
-            -- directions in the orbital reference frame
-            prograde = V3 0    1 0 :: V3 Double
-            normal   = V3 0    0 1 :: V3 Double
-            radial   = V3 (-1) 0 0 :: V3 Double
-
-            -- directions in the surface reference frame
-            surfaceUp    = V3 1 0 0 :: V3 Double
-            surfaceNorth = V3 0 1 0 :: V3 Double
-            surfaceEast  = V3 0 0 1 :: V3 Double
+            attitudeCtrl = AttitudeControl
+                { attControl      = control
+                , attAvStream     = angularVStream
+                , attRotStream    = rotStream
+                , attMoiStream    = moiStream
+                , attTorqueStream = torqueStream
+                }
 
             -- helper functions
             pitch    = setControlPitch    control
             roll     = setControlRoll     control
             yaw      = setControlYaw      control
             throttle = setControlThrottle control
-                
-            rotToward dir msg = do
-                (moiP, moiR, moiY) <- getStreamResult moiStream      msg
-                (torP, torR, torY) <- getStreamResult torqueStream   msg
-                (avX, avY, avZ)    <- getStreamResult angularVStream msg
-                (qX, qY, qZ, qW)   <- getStreamResult rotStream msg
-                let -- inverse rotation
-                    q = conjugate $ Quaternion qW (V3 qX qY qZ)
-                let -- bring the desired direction in the vessels' reference frame
-                    dir'@(V3 x' y' z') = rotate q dir
-                    sepPitch  = V3 0  y' z'
-                    sepYaw    = V3 x' y' 0
-                    anglPitch = signum (dir' `dot` down) * angleBetween forward sepPitch :: Double
-                    anglYaw   = signum (dir' `dot` left) * angleBetween forward sepYaw   :: Double
-                let -- find angular velocities on pitch, roll and yaw
-                    V3 avPitch avRoll avYaw = rotate q (V3 avX avY avZ)
-                --liftIO $ putStrLn $ printf "picth ~ angle: %.02g - av: %.02g - moi: %.02g - tor: %.02g" anglPitch avPitch moiP torP
-                --liftIO $ putStrLn $ printf "yaw   ~ angle: %.02g - av: %.02g - moi: %.02g - tor: %.02g" anglYaw avYaw moiY torY
-                pitch $ controlToStopAtAngle anglPitch avPitch moiP torP
-                yaw   $ controlToStopAtAngle anglYaw   avYaw   moiY torY
 
             getAccel msg = do
                 mass   <- realToFrac <$> getStreamResult massStream msg
@@ -131,76 +100,73 @@ controlProg streamClient =
 
             changePitch msg angl = do
                 let dir = V3 (cos angl) 0 (sin angl)
-                rotToward dir msg
+                rotToward dir attitudeCtrl msg
 
             pitchAccelRatio msg ratio = changePitch msg angl
                 where angl = acos $ max (-0.5) $ min 0.5 $ ratio -- thrust angle
 
             loop = do
-                msg    <- getStreamMessage streamClient
+                msg <- getStreamMessage streamClient
+
                 accel  <- getAccel            msg
                 grav   <- getGravity          msg
                 cenA   <- getCentrifugalAccel msg
                 alt    <- getStreamResult altStream msg
                 vSpeed <- getStreamResult vSpeedStream msg
                 hSpeed <- getStreamResult hSpeedStream msg
-                let
-                    vertA  = cenA - grav             -- total vertical acceleration (w/o engines)
-                    altDif = targetAlt - alt         -- difference between our current altitude and the desired one
+
+                let vertA  = cenA - grav      -- total vertical acceleration (w/o engines)
+                    altDif = targetAlt - alt  -- difference between our current altitude and the desired one
                     delta  = vSpeed**2 + 2*vertA*altDif
+                    t1     = if delta < 0 then 0 else (negate vSpeed + sqrt delta) / vertA
+                    t2     = if delta < 0 then 0 else (negate vSpeed - sqrt delta) / vertA
+                    tm     = max t1 t2
 
                 liftIO $ printf "altitude: %.02g\n" alt
                 liftIO $ printf "vAccel  : %.02g\n" vertA
                 liftIO $ printf "vSpeed  : %.02g ~ hSpeed: %.02g\n" vSpeed hSpeed
 
-                if | vertA > 0.01 -> do
+                if | (vertA > 0.01) ->  do -- when in orbit
                         liftIO $ putStrLn $ printf "IN ORBIT!"
                         pitch 0
                         yaw   0
 
-                   | accel == 0 -> do
+                   | (accel == 0) -> do -- what to do when not accelerating
                         pitch 0
                         yaw   0
                         loop
 
-                   | (vSpeed < 100 && alt < 10000) -> do
+                   | (vSpeed < 100 && alt < 10000) -> do -- what to do on the first stage of the launch (before gravity turn)
                         changePitch msg 0
                         loop
 
-                   | (alt < 90000) -> do
+                   | (alt < 90000) -> do -- flight while in the atmosphere, 'assisted gravity turn'
                         changePitch msg (deg 6 + deg 3 * alt / 4000)
                         loop
 
-                   | delta <= 0 && vSpeed > 0 -> do
+                   | (delta <= 0 && vSpeed > 0) -> do -- when adjusting apoapsis
                         let dAcc = 0.5 - (vertA + vSpeed**2/(2*altDif))
                         liftIO $ putStrLn $ printf "TOO LOW: %.02g ~ dAcc: %.02g" delta dAcc
                         pitchAccelRatio msg (dAcc / accel)
                         loop
 
-                   | delta <= 0 -> do
+                   | (delta > 0 && tm > 0) -> do  -- apoapsis ok and there is time before falling back to desired altitude
+                        let adjust = (tm/40)**2   -- trick to compensate for inaccuracies when computing acceleration
+                            dAcc   = negate (vSpeed / (tm**2) + vertA/(1+adjust))
+                        liftIO $ putStrLn $ printf "OK: %.02g ~ t1: %.02g ~ t2: %.02g" delta t1 t2
+                        pitchAccelRatio msg (dAcc / accel)
+                        loop
+
+                    | otherwise -> do -- if here, then we are falling back toward the planet/moon
                         liftIO $ putStrLn $ printf "FALLING BACK!"
                         pitchAccelRatio msg 1
                         loop
 
-                   | otherwise -> do
-                        let t1 = (negate vSpeed + sqrt delta) / vertA
-                            t2 = (negate vSpeed - sqrt delta) / vertA
-                            tm = max t1 t2
-                        if tm > 0 then do
-                                let dAcc = negate (vSpeed / (tm**2) + vertA/(1+(tm/30)**2))
-                                liftIO $ putStrLn $ printf "OK: %.02g ~ t1: %.02g ~ t2: %.02g" delta t1 t2
-                                pitchAccelRatio msg (dAcc / accel)
-                                loop
-                        else do
-                                liftIO $ putStrLn $ printf "FALLING BACK!"
-                                pitchAccelRatio msg 1
-                                loop
-
-            in
-                keepTryingOnExcept NoSuchStream $ do
-                    throttle 1
-                    loop
-                    throttle 0
+        in
+            keepTryingOnExcept NoSuchStream $ do
+                throttle 1
+                loop
+                throttle 0
 
 
 stagingProg :: StreamClient -> RPCContext ()
@@ -230,15 +196,3 @@ stagingProg streamClient =
             stage -- 1st stage separation
             waitThrustDrop thrustStream
             stage -- 2nd stage separation
-
-
-reentryProg :: StreamClient -> RPCContext ()
-reentryProg streamClient = getStandardVesselPackage >>= \StandardVesselPackage{..} ->
-    let
-        stage = void $ controlActivateNextStage control
-
-        waitSafeAltitude altStream = keepTryingOnExcept NoSuchStream $
-            monitorStreamWait streamClient altStream (< (7000))
-    in do
-        withStream (getFlightSurfaceAltitudeStreamReq flight) waitSafeAltitude
-        stage -- activate chutes

@@ -11,7 +11,7 @@ library
   exposed-modules:     Lib
                      , Utils.Streams
                      , Utils.Vectors
-                     , Utils.Physics
+                     , Control.Attitude
   build-depends:       base >= 4.7 && < 5
                      , mtl
                      , linear

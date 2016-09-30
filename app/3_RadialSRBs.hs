@@ -50,5 +50,3 @@ mainProg streamClient =
         stage -- decouple pod
         withStream (getFlightSurfaceAltitudeStreamReq flight) waitSafeAltitude
         stage -- activate chutes
-
-

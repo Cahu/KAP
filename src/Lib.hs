@@ -10,7 +10,7 @@ module Lib
 
 , module Utils.Streams
 , module Utils.Vectors
-, module Utils.Physics
+, module Control.Attitude
 
 ) where
 
@@ -21,7 +21,7 @@ import KRPCHS.SpaceCenter
 
 import Utils.Streams
 import Utils.Vectors
-import Utils.Physics
+import Control.Attitude
 
 import Control.Monad
 import Control.Monad.Catch
