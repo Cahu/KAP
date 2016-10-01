@@ -4,11 +4,20 @@ module Utils.Streams
 ( monitorStreamWait
 , monitorStreamChange
 , displayStreamValues
+
+, getStreamResultWith
+, v2FromTuple
+, v3FromTuple
+, v4FromTuple
+, quaternionFromTuple
+
 ) where
 
 
 import KRPCHS
 import KRPCHS.SpaceCenter
+
+import Linear
 
 import Control.Monad
 import Control.Monad.Trans
@@ -54,3 +63,20 @@ displayStreamValues source stream = loop
             val <- getStreamResult stream msg
             liftIO $ print val
             loop
+
+
+getStreamResultWith :: KRPCResponseExtractable a => (a -> b) -> KRPCStream a -> KRPCStreamMsg -> RPCContext b
+getStreamResultWith f stream msg = f <$> getStreamResult stream msg
+
+
+v2FromTuple :: Num a => (a, a) -> V2 a
+v2FromTuple (a, b) = V2 a b
+
+v3FromTuple :: Num a => (a, a, a) -> V3 a
+v3FromTuple (a, b, c) = V3 a b c
+
+v4FromTuple :: Num a => (a, a, a) -> V3 a
+v4FromTuple (a, b, c) = V3 a b c
+
+quaternionFromTuple :: Num a => (a, a, a, a) -> Quaternion a
+quaternionFromTuple (x, y, z, w) = Quaternion w (V3 x y z)

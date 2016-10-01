@@ -69,3 +69,17 @@ executable 4_ControlledAscent
                      , krpc-hs
                      , KAP
   default-language:    Haskell2010
+
+
+executable 5_DeorbitBurn
+  hs-source-dirs:      app
+  main-is:             5_DeorbitBurn.hs
+  ghc-options:         -Wall -threaded -rtsopts -with-rtsopts=-N
+  build-depends:       base
+                     , mtl
+                     , exceptions
+                     , async
+                     , linear
+                     , krpc-hs
+                     , KAP
+  default-language:    Haskell2010

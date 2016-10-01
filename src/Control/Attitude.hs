@@ -18,6 +18,7 @@ module Control.Attitude
 
 -- directions in the orbital reference frame
 , prograde
+, retrograde
 , normal
 , radial
 
@@ -76,6 +77,9 @@ vesselLeft = negated vesselRight
 
 prograde :: Direction
 prograde = V3 0 1 0
+
+retrograde :: Direction
+retrograde = negated prograde
 
 normal :: Direction
 normal = V3 0 0 1
