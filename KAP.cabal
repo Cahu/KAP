@@ -83,3 +83,17 @@ executable 5_DeorbitBurn
                      , krpc-hs
                      , KAP
   default-language:    Haskell2010
+
+
+executable 6_ExecuteNextNode
+  hs-source-dirs:      app
+  main-is:             6_ExecuteNextNode.hs
+  ghc-options:         -Wall -threaded -rtsopts -with-rtsopts=-N
+  build-depends:       base
+                     , mtl
+                     , exceptions
+                     , async
+                     , linear
+                     , krpc-hs
+                     , KAP
+  default-language:    Haskell2010

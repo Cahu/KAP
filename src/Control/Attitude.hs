@@ -11,6 +11,8 @@ module Control.Attitude
 , MomentOfInertia
 
 , rotToward
+, setRotationRpm
+, limitRotationRpm
 
 , delayToStopAv
 , controlToStopAv
@@ -37,11 +39,13 @@ module Control.Attitude
 
 
 import Linear
+import Control.Monad
 
 import KRPCHS
 import KRPCHS.SpaceCenter
 
 import Utils.Vectors
+import Utils.Streams
 
 
 type Delay           = Double
@@ -138,3 +142,30 @@ rotToward dir AttitudeControl{..} msg = do
     --liftIO $ putStrLn $ printf "yaw   ~ angle: %.02g - av: %.02g - moi: %.02g - tor: %.02g" anglYaw avYaw moiY torY
     setControlPitch attControl $ controlToStopAtAngle anglPitch avPitch moiP torP
     setControlYaw   attControl $ controlToStopAtAngle anglYaw   avYaw   moiY torY
+
+
+limitRotationRpm :: Double -> AttitudeControl -> KRPCStreamMsg -> RPCContext ()
+limitRotationRpm rpm ac@AttitudeControl{..} msg = do
+    (avX, avY, avZ) <- getStreamResult attAvStream     msg
+    q               <- quaternionFromTuple <$> getStreamResult attRotStream msg
+    let V3 _ avRoll _ = rotate q (V3 avX avY avZ)
+    when (abs av > abs avRoll) $
+        if (avRoll > 0) then setRotationRpm  rpm         ac msg
+                        else setRotationRpm (negate rpm) ac msg
+  where
+    rps = rpm / 60
+    av  = rps * 2 * pi
+
+
+setRotationRpm :: Double -> AttitudeControl -> KRPCStreamMsg -> RPCContext ()
+setRotationRpm rpm AttitudeControl{..} msg = do
+    (_, moiR, _)    <- getStreamResult attMoiStream    msg
+    (_, torR, _)    <- getStreamResult attTorqueStream msg
+    (avX, avY, avZ) <- getStreamResult attAvStream     msg
+    q               <- quaternionFromTuple <$> getStreamResult attRotStream msg
+    let V3 _ avRoll _ = rotate q (V3 avX avY avZ)
+    let ctrl = realToFrac $ controlToStopAv 0.1 (avRoll - av) moiR torR
+    setControlRoll attControl ctrl
+  where
+    rps = rpm / 60
+    av  = rps * 2 * pi
