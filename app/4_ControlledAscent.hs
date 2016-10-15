@@ -145,14 +145,13 @@ controlProg streamClient =
                         loop
 
                    | (delta <= 0 && vSpeed > 0) -> do -- when adjusting apoapsis
-                        let dAcc = 0.5 - (vertA + vSpeed**2/(2*altDif))
+                        let dAcc = 1 - (vertA + vSpeed**2/(2*altDif))
                         liftIO $ putStrLn $ printf "TOO LOW: %.02g ~ dAcc: %.02g" delta dAcc
                         pitchAccelRatio msg (dAcc / accel)
                         loop
 
-                   | (delta > 0 && tm > 0) -> do  -- apoapsis ok and there is time before falling back to desired altitude
-                        let adjust = (tm/40)**2   -- trick to compensate for inaccuracies when computing acceleration
-                            dAcc   = negate (vSpeed / (tm**2) + vertA/(1+adjust))
+                   | (delta > 0 && tm > 0) -> do -- apoapsis ok and there is time before falling back to desired altitude
+                        let dAcc   = negate (vSpeed/tm + vertA / (1+(tm/60)**2))
                         liftIO $ putStrLn $ printf "OK: %.02g ~ t1: %.02g ~ t2: %.02g" delta t1 t2
                         pitchAccelRatio msg (dAcc / accel)
                         loop
