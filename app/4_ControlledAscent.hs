@@ -65,6 +65,7 @@ controlProg streamClient =
       withStream (getFlightRotationStreamReq surfaceFlight)            $ \rotStream       ->
         let
             bigG      = 6.674 * 10**(-11)
+            incl      = deg 6.2 -- desired orbit inclination
             targetAlt = 150000
 
             attitudeCtrl = AttitudeControl
@@ -99,7 +100,7 @@ controlProg streamClient =
                 return $ v**2 / r
 
             changePitch msg angl = do
-                let dir = V3 (cos angl) 0 (sin angl)
+                let dir = V3 (cos angl) (sin angl * sin incl) (sin angl * cos incl)
                 rotToward dir attitudeCtrl msg
 
             pitchAccelRatio msg ratio = changePitch msg angl
