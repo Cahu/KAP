@@ -164,7 +164,8 @@ setRotationRpm rpm AttitudeControl{..} msg = do
     (avX, avY, avZ) <- getStreamResult attAvStream     msg
     q               <- quaternionFromTuple <$> getStreamResult attRotStream msg
     let V3 _ avRoll _ = rotate q (V3 avX avY avZ)
-    let ctrl = realToFrac $ controlToStopAv 0.1 (avRoll - av) moiR torR
+        diff = avRoll - av
+        ctrl = realToFrac $ controlToStopAv 0.4 diff moiR torR
     setControlRoll attControl ctrl
   where
     rps = rpm / 60
