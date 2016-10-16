@@ -100,37 +100,36 @@ execNode streamClient node ullageTime =
                 mass <- realToFrac <$> getStreamResult massStream msg
                 return $ thrust / mass
 
+            getBurnDir msg = do -- burn vector in the vessel's reference frame
+                burnVect <- v3FromTuple         <$> getStreamResult burnVectStream msg
+                q        <- quaternionFromTuple <$> getStreamResult rotStream      msg
+                return $ rotate (conjugate q) burnVect
+
             loop ullageTime = keepTryingOnExcept NoSuchStream $ do
-                msg      <- getStreamMessage streamClient
-                burnVect <- v3FromTuple <$> getStreamResult burnVectStream msg
-                loop' burnVect
+                msg <- getStreamMessage streamClient
+                loop' =<< getBurnDir msg
               where
                 minThrottle = 0.4
                 loop' initVect = do
                     msg      <- getStreamMessage streamClient
-                    accel    <- getAccel msg
+                    accel    <- getAccel   msg
+                    burnDir  <- getBurnDir msg
                     timeTo   <- getStreamResult burnTimeStream msg
-                    q        <- quaternionFromTuple <$> getStreamResult rotStream      msg
-                    av       <- v3FromTuple         <$> getStreamResult avStream       msg
-                    burnVect <- v3FromTuple         <$> getStreamResult burnVectStream msg
-                    let V3 avP _ avY = rotate q av
-                        dir          = rotate q vesselForward
-                        ang          = angleBetween dir burnVect
-                        angVel       = norm (V2 avP avY)
-                        deltaV       = realToFrac $ norm burnVect
+                    burnVect <- v3FromTuple <$> getStreamResult burnVectStream msg
+                    let deltaV       = realToFrac $ norm burnVect
                         tBurn        = realToFrac $ deltaV / accel
                         dAcc         = if tBurn > 0.5 then accel else deltaV / 0.5
                         ratio        = realToFrac $ max minThrottle (dAcc / accel)
-                        maxPrecision = minThrottle*accel*0.2
+                        maxPrecision = realToFrac $ minThrottle*accel*0.02
                     liftIO $ printf "Time: %.02g s ~ dV %.02g m/s +/- %.02g m/s (%.02g s)\n" timeTo deltaV maxPrecision tBurn
-                    setRotationRpm 5 attitudeCtrl msg
-                    rotToward burnVect attitudeCtrl msg
-                    if | (abs (angleBetween burnVect initVect) > 0.3) -> stop
-                       | (tBurn  < 0.2)                               -> stop -- max precision of the burn
-                       | (ang    > 0.2)                               -> loop' burnVect
+                    _   <- setRotationRpm 5 attitudeCtrl msg
+                    ang <- rotToward burnVect attitudeCtrl msg
+                    if | (abs (angleBetween burnDir initVect) > 0.5)  -> stop
+                       | (tBurn  < maxPrecision)                      -> ullage     >> loop' initVect -- max precision of the burn
+                       | (ang    > 0.2)                               -> loop' burnDir
                        | (timeTo < tBurn / 2)                         -> burn ratio >> loop' initVect
-                       | (timeTo < ullageTime + tBurn / 2)            -> ullage    >> loop' initVect
-                       | otherwise                                    -> loop' burnVect
+                       | (timeTo < ullageTime + tBurn / 2)            -> ullage     >> loop' initVect
+                       | otherwise                                    -> loop' burnDir
 
         in
             if (thrust == 0) then
