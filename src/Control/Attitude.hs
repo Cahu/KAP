@@ -149,7 +149,7 @@ limitRotationRpm :: Double -> AttitudeControl -> KRPCStreamMsg -> RPCContext ()
 limitRotationRpm rpm ac@AttitudeControl{..} msg = do
     (avX, avY, avZ) <- getStreamResult attAvStream     msg
     q               <- quaternionFromTuple <$> getStreamResult attRotStream msg
-    let V3 _ avRoll _ = rotate q (V3 avX avY avZ)
+    let V3 _ avRoll _ = rotate (conjugate q) (V3 avX avY avZ)
     when (abs av > abs avRoll) $ void $
         if (avRoll > 0) then setRotationRpm  rpm         ac msg
                         else setRotationRpm (negate rpm) ac msg
@@ -164,9 +164,9 @@ setRotationRpm rpm AttitudeControl{..} msg = do
     (_, torR, _)    <- getStreamResult attTorqueStream msg
     (avX, avY, avZ) <- getStreamResult attAvStream     msg
     q               <- quaternionFromTuple <$> getStreamResult attRotStream msg
-    let V3 _ avRoll _ = rotate q (V3 avX avY avZ)
+    let V3 _ avRoll _ = rotate (conjugate q) (V3 avX avY avZ)
         diff = avRoll - av
-        ctrl = realToFrac $ controlToStopAv 0.4 diff moiR torR
+        ctrl = realToFrac $ controlToStopAv 0.2 diff moiR torR
     setControlRoll attControl ctrl
     return diff
   where
