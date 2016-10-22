@@ -141,25 +141,20 @@ controlProg streamClient =
                         changePitch msg 0
                         loop
 
-                   | (alt < 90000) -> do -- flight while in the atmosphere, 'assisted gravity turn'
-                        changePitch msg (deg 6 + deg 3 * alt / 4000)
+                   | (alt < 80000) -> do -- flight while in the atmosphere, 'assisted gravity turn'
+                        changePitch msg (deg 4 + deg 7 * alt / 9000)
                         loop
 
-                   | (delta <= 0 && vSpeed > 0) -> do -- when adjusting apoapsis
-                        let dAcc = 1 - (vertA + vSpeed**2/(2*altDif))
-                        liftIO $ putStrLn $ printf "TOO LOW: %.02g ~ dAcc: %.02g" delta dAcc
+                   | (vSpeed > (-5) || altDif < 0) -> do -- when adjusting apoapsis
+                        let dAcc = negate $ vertA + vSpeed**2/(2*altDif)
+                        liftIO $ putStrLn $ printf "OK: %.02g ~ dAcc: %.02g" delta dAcc
                         pitchAccelRatio msg (dAcc / accel)
                         loop
 
-                   | (delta > 0 && tm > 0) -> do -- apoapsis ok and there is time before falling back to desired altitude
-                        let dAcc   = negate (vSpeed/tm + vertA / (1+(tm/60)**2))
-                        liftIO $ putStrLn $ printf "OK: %.02g ~ t1: %.02g ~ t2: %.02g" delta t1 t2
-                        pitchAccelRatio msg (dAcc / accel)
-                        loop
-
-                    | otherwise -> do -- if here, then we are falling back toward the planet/moon
+                   | otherwise -> do -- if here, then we are falling back toward the planet/moon
+                        let dAcc = 1 - vertA
                         liftIO $ putStrLn $ printf "FALLING BACK!"
-                        pitchAccelRatio msg 1
+                        pitchAccelRatio msg (dAcc / accel)
                         loop
 
         in
@@ -183,10 +178,10 @@ stagingProg streamClient =
             monitorStreamWait streamClient vSpeedStream (< (-10))
 
     in do
-        countDownFromTo 5 3
+        countDownFromTo 10 5
         stage -- fire
 
-        countDownFromTo 2 1
+        countDownFromTo 4 1
         stage -- release clamps
 
         withStream (getVesselAvailableThrustStreamReq vessel) $ \thrustStream -> do
